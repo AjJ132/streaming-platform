@@ -18,7 +18,7 @@ import (
 var db *sql.DB
 
 func main(){
-	fmt.Println("Starting User Information Write Controller...")
+	fmt.Println("Starting Backend API Controller...")
 	initDB()
 
 	//create handler for user login and signup
@@ -46,7 +46,6 @@ func main(){
 
 	//Start server and host on port 8086
 	log.Fatal(http.ListenAndServe("0.0.0.0:8086", nil))
-	
 }
 
 func initDB(){
@@ -79,7 +78,6 @@ func initDB(){
 	}
 
 	fmt.Println("Database connection successful!")
-
 }
 
 var tokenSignKey = []byte("not-very-secret-key")
@@ -247,6 +245,15 @@ func (h *UserHandler) UpdateUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	claims, _ := token.Claims.(jwt.MapClaims)
 	user_id := claims["id"].(string)
+
+	//TEMP print user id
+	fmt.Println(user_id)
+
+	//if user id is empty return error
+	if user_id == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	//update user information
 	if _, err = h.DB.Exec(`UPDATE User_Info SET user_email=$1, user_firstName=$2, user_lastName=$3 WHERE user_id=$4`, userInfo.email, userInfo.first_name, userInfo.last_name, user_id); err != nil {
