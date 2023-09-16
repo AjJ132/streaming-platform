@@ -29,6 +29,18 @@ function Login_Register() {
     }
   };
 
+  const handleBypass = () => {
+    try {
+      //Navigate to HomeScreen
+      console.log("Bypass successful");
+      return <Navigate to="/" />;
+      //localStorage.setItem("token", fakeToken);
+      //console.log("Fake token generated and stored.");
+    } catch (error) {
+      console.error("Bypass failed", error);
+    }
+  };
+
   const handleRegister = async () => {
     try {
       const response = await axios.post("/api/register", { email, password });
@@ -60,6 +72,7 @@ function Login_Register() {
           <button onClick={() => setIsRegistered(false)}>
             Switch to Register
           </button>
+          <button onClick={() => handleBypass(false)}>Bypass</button>
         </>
       ) : (
         <>

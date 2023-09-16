@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -27,7 +28,7 @@ func main(){
 	}
 	
 
-	http.HandleFunc("/sigin", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/signin", func(w http.ResponseWriter, r *http.Request){
 		handler.Signin(w,r)
 	})
 

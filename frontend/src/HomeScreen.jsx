@@ -3,6 +3,8 @@ import "./HomeScreen.css";
 import reactLogo from "./assets/react.svg";
 import Sidebar from "./components/sidebar/sidebar.jsx";
 
+<Route path="/Dashboard" component={HomeScreen} />;
+
 function HomeScreen() {
   return (
     <div className="home-page-wrapper">

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: streaming-platform
+spec:
+  type: LoadBalancer
+  # loadBalancerIP: Reserved IP of service here
+  selector:
+    app: streaming-platform-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
