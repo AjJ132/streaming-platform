@@ -27,6 +27,6 @@ spec:
                   name: db-credentials
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
-              value: login_db
+              value: user_information_db
           ports:
             - containerPort: 5432

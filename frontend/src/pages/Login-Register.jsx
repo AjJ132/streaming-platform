@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Navigate } from "react-router-dom";
+// import { Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import jwt_decode from "jwt-decode";
 import axios from "axios";
 import "./Login-Register.css";
@@ -8,6 +9,7 @@ function Login_Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isRegistered, setIsRegistered] = useState(true);
+  const navigate = useNavigate();
 
   let authToken = localStorage.getItem("token");
 
@@ -15,7 +17,7 @@ function Login_Register() {
     let decodedToken = jwt_decode(authToken);
     let currentDate = new Date();
     if (decodedToken.exp * 1000 >= currentDate.getTime()) {
-      return <Navigate to="/HomeScreen" />;
+      return <Navigate to="/Dashboard" />;
     }
   }
 
@@ -31,11 +33,9 @@ function Login_Register() {
 
   const handleBypass = () => {
     try {
-      //Navigate to HomeScreen
+      // Navigate to HomeScreen
       console.log("Bypass successful");
-      return <Navigate to="/" />;
-      //localStorage.setItem("token", fakeToken);
-      //console.log("Fake token generated and stored.");
+      navigate("/Dashboard"); // Use navigate to go to the Dashboard
     } catch (error) {
       console.error("Bypass failed", error);
     }

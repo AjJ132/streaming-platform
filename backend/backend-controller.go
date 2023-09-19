@@ -35,15 +35,20 @@ var tokenSignKey = []byte("not-very-secret-key")
 	
 //signup
 func Signup(w http.ResponseWriter, r *http.Request) {
+	
+	fmt.Println("Received signup reques.t")
 
 	//Validate JWT token
 	tokenString := r.Header.Get("Authorization")
 	if !ValidateToken(tokenString) {
 		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Println("Unauthorized")
 		return
 	}
 
-    url, _ := url.Parse("http://user-info-write-service:8086/signup")
+	fmt.Println("Authorized. Passing Request to User Info Write Controller...")
+
+    url, _ := url.Parse("http://user-info-write-controller-service:8085/signup")
     proxy := httputil.NewSingleHostReverseProxy(url)
     proxy.ServeHTTP(w, r)
 }
@@ -58,7 +63,7 @@ func Signin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, _ := url.Parse("http://user-info-read-service:8086/signin")
+	url, _ := url.Parse("http://user-info-read-controller-service:8087/signin")
 	proxy := httputil.NewSingleHostReverseProxy(url)
 	proxy.ServeHTTP(w, r)
 }

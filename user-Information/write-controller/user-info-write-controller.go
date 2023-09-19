@@ -63,7 +63,7 @@ func initDB(){
 
 	//Connection string TODO replace with kubernetes service name
 	//connString := fmt.Sprintf("postgres://%s:%s@user-information-write-service:5432/user_information_db?sslmode=disable", user, password)
-	connString := fmt.Sprintf("postgres://%s:%s@localhost:5432/user_information_db?sslmode=disable", user, password)
+	connString := fmt.Sprintf("postgres://%s:%s@user-info-database-service:5432/user_information_db?sslmode=disable", user, password)
 	db, err = sql.Open("postgres", connString)
 
 	if(err != nil){
