@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -132,6 +133,7 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("Creds: " + combinedCreds.Credentials.user_username + " , " + combinedCreds.Credentials.user_password)
 
 	//hash password
 	hashedPassword, err := h.Hasher.GenerateFromPassword([]byte(combinedCreds.Credentials.user_password), 10)
@@ -142,9 +144,13 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("Hashed Password: " + string(hashedPassword))
+
 	//generate UUID
 	newUUID := uuid.New().String()
 	combinedCreds.Credentials.user_id = newUUID
+
+	fmt.Println("UUID: " + newUUID)
 	
 	//set date joined
 	combinedCreds.UserInfo.date_joined = time.Now()
@@ -154,16 +160,21 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 
 
 	//insert user into login table
-	if _, err = h.DB.Exec(`INSERT INTO User_Login (user_id,user_userName, user_password) VALUES ($1, $2, $3)`, combinedCreds.Credentials.user_id, combinedCreds.Credentials.user_username, string(hashedPassword)); err != nil {
+	if _, err = h.DB.Exec(`INSERT INTO User_Login (user_id,user_userName, bycrypt_password) VALUES ($1, $2, $3)`, combinedCreds.Credentials.user_id, combinedCreds.Credentials.user_username, string(hashedPassword)); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
+	fmt.Println("User inserted into login table")
+
 	//insert user information into user info table
-	if _, err = h.DB.Exec(`INSERT INTO User_Info (user_id, user_email, user_firstName, user_lastName, user_dateJoined, user_channelID) VALUES ($1, $2, $3, $4, $5, $6)`, combinedCreds.Credentials.user_id, combinedCreds.UserInfo.email, combinedCreds.UserInfo.first_name, combinedCreds.UserInfo.last_name, combinedCreds.UserInfo.date_joined, combinedCreds.UserInfo.channel_id); err != nil {
+	if _, err = h.DB.Exec(`INSERT INTO user_information (user_id, user_email, user_firstname, user_lastname, user_channelID) VALUES ($1, $2, $3, $4, $5)`, combinedCreds.Credentials.user_id, combinedCreds.UserInfo.email, combinedCreds.UserInfo.first_name, combinedCreds.UserInfo.last_name, strconv.Itoa(combinedCreds.UserInfo.channel_id)); err != nil {
+		fmt.Println("Error inserting into user_information:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	
+	fmt.Println("User inserted into user info table")
 	
 	//generate JWT token
 	token, err := generateToken(combinedCreds.Credentials.user_id)
@@ -171,6 +182,9 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	fmt.Println("JWT Token: " + token)
+	fmt.Println("User successfully signed up!")
 
 	//return token
 	w.WriteHeader(http.StatusOK)
@@ -185,6 +199,8 @@ func (h *LoginHandler) Signin(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	fmt.Println("Creds: " + creds.user_username + " , " + creds.user_password)
 
 	//query database for user
 	result := h.DB.QueryRow(`SELECT user_password FROM Users WHERE user_username =$1`, creds.user_username)

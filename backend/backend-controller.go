@@ -20,9 +20,11 @@ import (
 func main(){
 	fmt.Println("Starting Backend API Controller...")
 	http.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
+		Signup(w, r)
 	})
 
 	http.HandleFunc("/signin", func(w http.ResponseWriter, r *http.Request) {
+		Signin(w, r)
 	})
 
 	//Start server and host on port 8081
@@ -38,13 +40,13 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 	
 	fmt.Println("Received signup reques.t")
 
-	//Validate JWT token
-	tokenString := r.Header.Get("Authorization")
-	if !ValidateToken(tokenString) {
-		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Println("Unauthorized")
-		return
-	}
+	// //Validate JWT token
+	// tokenString := r.Header.Get("Authorization")
+	// if !ValidateToken(tokenString) {
+	// 	w.WriteHeader(http.StatusUnauthorized)
+	// 	fmt.Println("Unauthorized")
+	// 	return
+	// }
 
 	fmt.Println("Authorized. Passing Request to User Info Write Controller...")
 
@@ -56,12 +58,17 @@ func Signup(w http.ResponseWriter, r *http.Request) {
 //signin
 func Signin(w http.ResponseWriter, r *http.Request) {
 	
-	//Validate JWT token
-	tokenString := r.Header.Get("Authorization")
-	if !ValidateToken(tokenString) {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	fmt.Println("Received signin reques.t")
+
+	// //Validate JWT token
+	// tokenString := r.Header.Get("Authorization")
+	// if !ValidateToken(tokenString) {
+	// 	w.WriteHeader(http.StatusUnauthorized)
+	// 	fmt.Println("Unauthorized")
+	// 	return
+	// }
+
+	fmt.Println("Authorized. Passing Request to User Info Write Controller...")
 
 	url, _ := url.Parse("http://user-info-read-controller-service:8087/signin")
 	proxy := httputil.NewSingleHostReverseProxy(url)
