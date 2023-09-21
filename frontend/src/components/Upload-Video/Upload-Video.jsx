@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import "./Upload-Video.css";
+import { uploadVideo } from "../Upload-Logic/Upload-Logic.js";
 
 function UploadVideo() {
   const [title, setTitle] = useState("");
@@ -9,9 +10,7 @@ function UploadVideo() {
   const handleSubmit = (e) => {
     e.preventDefault();
     // Logic to upload the video
-    console.log("Title:", title);
-    console.log("Description:", description);
-    console.log("Video File:", video);
+    uploadVideo(video, title, description);
   };
 
   return (
