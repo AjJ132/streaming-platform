@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-info-write-controller-service
+spec:
+  selector:
+    app: streaming-platform-user-info-write-controller
+  ports:
+    - protocol: TCP
+      port: 8085
+      targetPort: 8086

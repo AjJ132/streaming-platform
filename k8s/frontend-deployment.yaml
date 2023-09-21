@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streaming-platform-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: streaming-platform-frontend
+  template:
+    metadata:
+      labels:
+        app: streaming-platform-frontend
+    spec:
+      containers:
+        - name: streaming-platform
+          image: ajj132/streaming-platform-frontend:latest
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 8080
