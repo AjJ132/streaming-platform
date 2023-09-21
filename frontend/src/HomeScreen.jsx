@@ -2,8 +2,15 @@ import { useState } from "react";
 import "./HomeScreen.css";
 import reactLogo from "./assets/react.svg";
 import Sidebar from "./components/sidebar/sidebar.jsx";
+import UploadVideo from "./components/Upload-Video/Upload-Video.jsx";
+import VideoBrowser from "./components/Video-Browser/Video-Browser.jsx";
 
 function HomeScreen() {
+  const [activeContent, setActiveContent] = useState("Video-Browser");
+
+  const handleComponentChange = (component) => {
+    setActiveContent(component);
+  };
   return (
     <div className="home-page-wrapper">
       <div className="navbar">
@@ -57,9 +64,15 @@ function HomeScreen() {
         </div>
       </div>
       <div className="sidebar-container">
-        <Sidebar />
+        <Sidebar onComponentChange={handleComponentChange} />
       </div>
-      <div className="main-content"></div>
+      <div className="main-content">
+        {activeContent === "Video-Upload" ? (
+          <UploadVideo />
+        ) : activeContent === "Video-Browser" ? (
+          <VideoBrowser />
+        ) : null}
+      </div>
     </div>
   );
 }

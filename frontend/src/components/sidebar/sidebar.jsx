@@ -3,11 +3,14 @@ import "./sidebar.css";
 
 import "font-awesome/css/font-awesome.min.css";
 
-function Sidebar() {
+function Sidebar({ onComponentChange }) {
   return (
     <div className="sidebar-wrapper">
       <div className="sidebar-content">
-        <a className="sidebar-item">
+        <a
+          className="sidebar-item"
+          onClick={() => onComponentChange("Video-Browser")}
+        >
           <i className="fa fa-home"></i> Home
         </a>
         <a className="sidebar-item">
@@ -15,6 +18,12 @@ function Sidebar() {
         </a>
         <a className="sidebar-item">
           <i className="fa fa-user"></i> My Videos
+        </a>
+        <a
+          className="sidebar-item"
+          onClick={() => onComponentChange("Video-Upload")}
+        >
+          <i className="fa fa-upload"></i> Upload
         </a>
         <a className="sidebar-item">
           <i className="fa fa-gear"></i> Settings

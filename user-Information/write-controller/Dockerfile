@@ -18,7 +18,7 @@ COPY . .
 RUN go build -o main .
 
 # Expose ports
-EXPOSE 8080:8080
+EXPOSE 8086
 
 # Command to run the executable
 CMD ["./main"]

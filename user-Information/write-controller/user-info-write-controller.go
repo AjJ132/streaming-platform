@@ -19,7 +19,7 @@ import (
 var db *sql.DB
 
 func main(){
-	fmt.Println("Starting Backend API Controller...")
+	fmt.Println("Starting User Info Write API Controller...")
 	initDB()
 
 	//create handler for user login and signup
@@ -108,6 +108,11 @@ type Credentials struct {
 	user_username string `json:"username"`
 }
 
+type LoginCredentials struct {
+	user_username string `json:"username"`
+	user_password string `json:"password"`
+}
+
 type User_Write struct {
 	email string `json:"email"`
 	first_name string `json:"first_name"`
@@ -126,17 +131,17 @@ type CombinedCreds struct {
 func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Signup request received")
 	//decode request body into struct
-	combinedCreds := &CombinedCreds{}
-	err := json.NewDecoder(r.Body).Decode(combinedCreds)
+	loginCredentials := &LoginCredentials{}
+	err := json.NewDecoder(r.Body).Decode(loginCredentials)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	fmt.Println("Creds: " + combinedCreds.Credentials.user_username + " , " + combinedCreds.Credentials.user_password)
+	fmt.Println("Creds: " + loginCredentials.user_username + " , " + loginCredentials.user_password)
 
 	//hash password
-	hashedPassword, err := h.Hasher.GenerateFromPassword([]byte(combinedCreds.Credentials.user_password), 10)
+	hashedPassword, err := h.Hasher.GenerateFromPassword([]byte(loginCredentials.user_password), 10)
 
 	//Check for errors from hashed password
 	if err != nil {
@@ -148,19 +153,11 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	//generate UUID
 	newUUID := uuid.New().String()
-	combinedCreds.Credentials.user_id = newUUID
 
 	fmt.Println("UUID: " + newUUID)
 	
-	//set date joined
-	combinedCreds.UserInfo.date_joined = time.Now()
-
-	//set channel id to zero
-	combinedCreds.UserInfo.channel_id = 0
-
-
 	//insert user into login table
-	if _, err = h.DB.Exec(`INSERT INTO User_Login (user_id,user_userName, bycrypt_password) VALUES ($1, $2, $3)`, combinedCreds.Credentials.user_id, combinedCreds.Credentials.user_username, string(hashedPassword)); err != nil {
+	if _, err = h.DB.Exec(`INSERT INTO User_Login (user_id,user_userName, bycrypt_password) VALUES ($1, $2, $3)`, newUUID, loginCredentials.user_username, string(hashedPassword)); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -168,7 +165,7 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("User inserted into login table")
 
 	//insert user information into user info table
-	if _, err = h.DB.Exec(`INSERT INTO user_information (user_id, user_email, user_firstname, user_lastname, user_channelID) VALUES ($1, $2, $3, $4, $5)`, combinedCreds.Credentials.user_id, combinedCreds.UserInfo.email, combinedCreds.UserInfo.first_name, combinedCreds.UserInfo.last_name, strconv.Itoa(combinedCreds.UserInfo.channel_id)); err != nil {
+	if _, err = h.DB.Exec(`INSERT INTO user_information (user_id, user_email, user_firstname, user_lastname, user_channelID) VALUES ($1, $2, $3, $4, $5)`, newUUID, "", "","", strconv.Itoa(0)); err != nil {
 		fmt.Println("Error inserting into user_information:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -177,7 +174,7 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("User inserted into user info table")
 	
 	//generate JWT token
-	token, err := generateToken(combinedCreds.Credentials.user_id)
+	token, err := generateToken(newUUID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

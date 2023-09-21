@@ -17,15 +17,19 @@ function Login_Register() {
     let decodedToken = jwt_decode(authToken);
     let currentDate = new Date();
     if (decodedToken.exp * 1000 >= currentDate.getTime()) {
-      return <Navigate to="/Dashboard" />;
+      navigate("/Dashboard");
     }
   }
 
   const handleLogin = async () => {
     try {
-      const response = await axios.post("/api/login", { email, password });
+      const response = await axios.post("/api/signin", { email, password });
+      //verify that response is successful
+      if (response.status !== 200) {
+        throw new Error("Registration failed");
+      }
       localStorage.setItem("token", response.data.token);
-      // TODO: Navigate to HomeScreen
+      navigate("/Dashboard");
     } catch (error) {
       console.error("Login failed", error);
     }
@@ -43,9 +47,13 @@ function Login_Register() {
 
   const handleRegister = async () => {
     try {
-      const response = await axios.post("/api/register", { email, password });
+      const response = await axios.post("/api/signup", { email, password });
+      //verify that response is successful
+      if (response.status !== 200) {
+        throw new Error("Registration failed");
+      }
       localStorage.setItem("token", response.data.token);
-      // TODO: Navigate to HomeScreen
+      navigate("/Dashboard");
     } catch (error) {
       console.error("Registration failed", error);
     }

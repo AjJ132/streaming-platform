@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,14 +20,22 @@ import (
 
 func main(){
 	fmt.Println("Starting Backend API Controller...")
-	http.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
+	// http.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
+	// 	Signup(w, r)
+	// })
+
+	http.HandleFunc("/api/signup", func(w http.ResponseWriter, r *http.Request) {
 		Signup(w, r)
 	})
 
-	http.HandleFunc("/signin", func(w http.ResponseWriter, r *http.Request) {
+	// http.HandleFunc("/signin", func(w http.ResponseWriter, r *http.Request) {
+	// 	Signin(w, r)
+	// })
+
+	http.HandleFunc("/api/signin", func(w http.ResponseWriter, r *http.Request) {
 		Signin(w, r)
 	})
-
+	
 	//Start server and host on port 8081
 	log.Fatal(http.ListenAndServe("0.0.0.0:8081", nil))
 	
@@ -38,21 +47,36 @@ var tokenSignKey = []byte("not-very-secret-key")
 //signup
 func Signup(w http.ResponseWriter, r *http.Request) {
 	
-	fmt.Println("Received signup reques.t")
-
-	// //Validate JWT token
-	// tokenString := r.Header.Get("Authorization")
-	// if !ValidateToken(tokenString) {
-	// 	w.WriteHeader(http.StatusUnauthorized)
-	// 	fmt.Println("Unauthorized")
-	// 	return
-	// }
+	fmt.Println("Received signup request.")
 
 	fmt.Println("Authorized. Passing Request to User Info Write Controller...")
 
-    url, _ := url.Parse("http://user-info-write-controller-service:8085/signup")
-    proxy := httputil.NewSingleHostReverseProxy(url)
-    proxy.ServeHTTP(w, r)
+	resp, err := http.Post("http://user-info-write-controller-service:8085/signup", "application/json", r.Body)
+
+	if err != nil {
+		fmt.Println("Error in signup request: ", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Println("Response from User Info Write Controller: ", resp)
+
+	//return response from user info write controller
+	var tokenResponse struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
+		fmt.Println("Non 200 response: ", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Write JSON response to client
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(tokenResponse); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 //signin
