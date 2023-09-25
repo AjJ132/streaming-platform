@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from "uuid";
+
 // uploadLogic.js
 export const uploadVideo = async (video, title, description) => {
   // Initialize variables and configurations
@@ -29,6 +31,9 @@ export const uploadVideo = async (video, title, description) => {
   // This UUID will be used to create a folder for storing chunks.
   const uuid = uuidv4();
   metadata.uuid = uuid;
+
+  console.log(uuid);
+  console.log(metadata);
 
   // Step 5: Start the upload session by sending metadata and UUID to the server
   // The server initializes storage based on the UUID and waits for chunks.
