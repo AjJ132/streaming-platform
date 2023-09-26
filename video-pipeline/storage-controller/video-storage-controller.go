@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/minio/minio-go/v7"
@@ -27,6 +28,14 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+//Client PassKeys 
+var clientPasskeys = make(map[string]string)
+var currentVideoUploadName = ""
+
+// Create a new bucket
+bucketName := "videos-upload"
+location := "us-east-1"
+
 func main() {
 	// Initialize MinIO client
 	minioClient, err := minio.New("CHANGE-ME:9000", &minio.Options{
@@ -37,9 +46,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Create a new bucket
-	bucketName := "videos-upload"
-	location := "us-east-1"
+	
 	err = minioClient.MakeBucket(bucketName, minio.MakeBucketOptions{Region: location})
 	if err != nil {
 		exists, err := minioClient.BucketExists(bucketName)
@@ -56,6 +63,8 @@ func main() {
 	// if err != nil {
 	// 	log.Fatalln(err)
 	// }
+
+	go watchQueue(&VideoQue)
 
 	// Write video chunk data to MinIO
 	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +147,9 @@ func EstablishPersistenConnection(w http.ResponseWriter, r *http.Request){
 	mutex.Unlock()
 
 	//find clients position in the queue and send that back
+	clientPosition := ReturnClientsPosition(token)
+
+	SendClientQueuePosition(clientID, clientPosition)
 }
 
 func SendClientQueuePosition(clientID string, number int){
@@ -154,11 +166,88 @@ func SendClientQueuePosition(clientID string, number int){
 	}
 }
 
-func NotifyClient(clientID string){
+//Notify client that its their turn in the Queue to upload
+func NotifyClient(clientID string) {
+    passkey, _ := generateToken()  // Reuse your existing generateToken function
+    
+    mutex.Lock()
+    clientPasskeys[clientID] = passkey
+    conn, ok := clients[clientID]
+    mutex.Unlock()
 
+
+
+    if ok {
+		//Create folder with video name on the Minio storage pod
+		videoName := ReturnClientVideoName(clientID)
+		if(videoName == ""){
+			GeneralErrorHandling("There was an error in retrieving the video name")
+		}
+
+		// Create a new folder (MinIO treats folders as zero-byte objects)
+		_, err = minioClient.PutObject(bucketName, videoName, bytes.NewReader([]byte("")), 0, minio.PutObjectOptions{ContentType: "application/x-directory"})
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		//Notify client that they can begin upload, give them a valid upload passkey
+        if err := conn.WriteMessage(websocket.TextMessage, []byte("PASSKEY:"+passkey)); err != nil {
+            fmt.Println("There was an error when notifying the client that its their turn in the queue")
+        }
+    }
 }
 
-//Function that will take a video upload from the user and upload it to MinIO
+//Function that will handle and save the videos to storage
+func HandleVideoUpload(w http.ResponseWriter, r *http.Request){
+	//Decode
+	var requestObj VideoUploadPasskey
+	err := json.NewDecoder(r.Body).Decode(&requestObj)
+	if err != nil {
+		http.Error(w, "Could not decode video upload request", http.StatusBadRequest)
+		return
+	}
+
+	//Validate passkey
+	validated := ValidatePasskey(requestObj.ClientID, requestObj.Passkey)
+
+	if !validated{
+		fmt.Println("A clients passkey could not be validated")
+	}
+
+	//Save data to active video name
+}
+
+//Validate Client Passkey
+func ValidatePasskey(clientID, passkey string) bool {
+    mutex.Lock()
+    storedPasskey, ok := clientPasskeys[clientID]
+    mutex.Unlock()
+    return ok && storedPasskey == passkey
+}
+
+//GO routine to watch Queue for changes
+func watchQueue(q *Queue) {
+    for {
+        q.lock.Lock()
+        if q.modified {
+            q.modified = false
+            q.lock.Unlock()
+            
+            time.Sleep(10 * time.Second) // Wait for 10 seconds
+
+            // Notify the client
+            if len(q.items) > 0 {
+                firstInQueue := q.items[0]
+				currentVideoUploadName = firstInQueue.VideoName
+                NotifyClient(firstInQueue.QueueToken)
+            }
+        } else {
+            q.lock.Unlock()
+        }
+
+        time.Sleep(1 * time.Second) // Check every second
+    }
+}
 
 //Search queue for token
 func SearchQueue(token string) bool{
@@ -181,11 +270,21 @@ func ReturnClientsPosition(token string) int{
 	return -1
 }
 
+func ReturnClientVideoName(token string) string{
+	for i := 0; i < len(VideoQue.items); i++ {
+		if VideoQue.items[i].QueueToken == token {
+			return VideoQue.items[i].VideoName
+		}
+	}
+	return "";
+}
+
 //Queue Item
 func (q *Queue) Enqueue(item QueueItem) {
 	q.lock.Lock()
 	q.items = append(q.items, item)
 	q.lock.Unlock()
+	q.modified = true
 }
 
 //Dequeue Item
@@ -199,6 +298,7 @@ func (q *Queue) Dequeue() *QueueItem {
 
 	item := q.items[0]
 	q.items = q.items[1:]
+	q.modified = true
 	return &item
 }
 
@@ -209,6 +309,11 @@ func generateToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(byteSlice), nil
+}
+
+func GeneralErrorHandling(error string){
+	fmt.Println("There was a general unhandled error. Printing...")
+	fmt.Println(error)
 }
 
 var tokenSignKey = "not-very-secret-key"
@@ -225,6 +330,7 @@ type QueueItem struct {
 type Queue struct {
 	items []QueueItem
 	lock  sync.Mutex
+	modified bool
 }
 
 // Define client type
@@ -240,4 +346,10 @@ type TokenBody struct {
 type VideoRequest struct {
 	Name string `json:"name"`
 	VideoName string `json:"videoName"`
+}
+
+type VideoUploadPasskey struct{
+	ClientID string `json:"clientID"`
+	Passkey string `json:"passkey"`
+	Data string `json:"data"`
 }
