@@ -15,10 +15,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-//Read Database Connection
+// Read Database Connection
 var db *sql.DB
 
-func main(){
+func main() {
 	fmt.Println("Starting User Info Write API Controller...")
 	initDB()
 
@@ -49,7 +49,7 @@ func main(){
 	log.Fatal(http.ListenAndServe("0.0.0.0:8086", nil))
 }
 
-func initDB(){
+func initDB() {
 	//Initialize connections to write database
 	fmt.Println("Attempting to connect to read database...")
 	var err error
@@ -67,13 +67,13 @@ func initDB(){
 	connString := fmt.Sprintf("postgres://%s:%s@user-info-database-service:5432/user_information_db?sslmode=disable", user, password)
 	db, err = sql.Open("postgres", connString)
 
-	if(err != nil){
+	if err != nil {
 		fmt.Println("Error opening database connection")
 		panic(err)
 	}
 
 	err = db.Ping()
-	if(err != nil){
+	if err != nil {
 		fmt.Println("Error pinging the database connection")
 		panic(err)
 	}
@@ -103,7 +103,7 @@ func (bh BcryptHasher) GenerateFromPassword(password []byte, cost int) ([]byte, 
 type BcryptHasher struct{}
 
 type Credentials struct {
-	user_id string
+	user_id       string
 	user_password string `json:"password"`
 	user_username string `json:"username"`
 }
@@ -114,19 +114,17 @@ type LoginCredentials struct {
 }
 
 type User_Write struct {
-	email string `json:"email"`
-	first_name string `json:"first_name"`
-	last_name string `json:"last_name"`
+	email       string    `json:"email"`
+	first_name  string    `json:"first_name"`
+	last_name   string    `json:"last_name"`
 	date_joined time.Time `json:"date_joined"`
-	channel_id int `json:"channel_id"`
+	channel_id  int       `json:"channel_id"`
 }
 
 type CombinedCreds struct {
-    Credentials Credentials `json:"credentials"`
-    UserInfo    User_Write  `json:"user_info"`
+	Credentials Credentials `json:"credentials"`
+	UserInfo    User_Write  `json:"user_info"`
 }
-
-	
 
 func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Signup request received")
@@ -155,7 +153,7 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	newUUID := uuid.New().String()
 
 	fmt.Println("UUID: " + newUUID)
-	
+
 	//insert user into login table
 	if _, err = h.DB.Exec(`INSERT INTO User_Login (user_id,user_userName, bycrypt_password) VALUES ($1, $2, $3)`, newUUID, loginCredentials.user_username, string(hashedPassword)); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -165,14 +163,14 @@ func (h *LoginHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("User inserted into login table")
 
 	//insert user information into user info table
-	if _, err = h.DB.Exec(`INSERT INTO user_information (user_id, user_email, user_firstname, user_lastname, user_channelID) VALUES ($1, $2, $3, $4, $5)`, newUUID, "", "","", strconv.Itoa(0)); err != nil {
+	if _, err = h.DB.Exec(`INSERT INTO user_information (user_id, user_email, user_firstname, user_lastname, user_channelID) VALUES ($1, $2, $3, $4, $5)`, newUUID, "", "", "", strconv.Itoa(0)); err != nil {
 		fmt.Println("Error inserting into user_information:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	
+
 	fmt.Println("User inserted into user info table")
-	
+
 	//generate JWT token
 	token, err := generateToken(newUUID)
 	if err != nil {
@@ -233,7 +231,7 @@ func (h *LoginHandler) Signin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"token": token})
 }
 
-//Update User Information
+// Update User Information
 func (h *UserHandler) UpdateUserInfo(w http.ResponseWriter, r *http.Request) {
 	//verify JWT token
 	tokenString := r.Header.Get("Authorization")
@@ -281,8 +279,8 @@ func (h *UserHandler) UpdateUserInfo(w http.ResponseWriter, r *http.Request) {
 // Generate JWT Token
 func generateToken(id string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id": id,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(),
+		"id":  id,
+		"exp": time.Now().Add(time.Hour * 24).Unix(),
 	})
 
 	// return token

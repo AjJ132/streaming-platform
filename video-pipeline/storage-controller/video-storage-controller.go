@@ -67,22 +67,23 @@ func main() {
 	go watchQueue(&VideoQue)
 
 	// Write video chunk data to MinIO
-	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(r.Body)
-		videoChunk := buf.Bytes()
-
-		objectName := folderName + "video-chunk-1" // Use unique names for chunks
-		_, err := minioClient.PutObject(bucketName, objectName, bytes.NewReader(videoChunk), int64(len(videoChunk)), minio.PutObjectOptions{ContentType: "video/mp4"})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Write([]byte("Successfully uploaded video chunk"))
+	http.HandleFunc("/request", func(w http.ResponseWriter, r *http.Request) {
+		UploadRequest(w, r)
 	})
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	http.HandleFunc("/ws/connect", func(w http.ResponseWriter, r *http.Request) {
+		EstablishPersistenConnection(w, r)
+	})
+
+	http.HandleFunc("/ws/disconnect", func(w http.ResponseWriter, r *http.Request) {
+		
+	})
+
+	http.HandleFunc("/handle-upload", func(w http.ResponseWriter, r *http.Request) {
+		HandleVideoUpload(w, r)
+	})
+
+	log.Fatal(http.ListenAndServe(":8010", nil))
 }
 
 //Function that will add a user's video upload to a queue
@@ -118,14 +119,13 @@ func UploadRequest(w http.ResponseWriter, r *http.Request){
 }
 
 func EstablishPersistenConnection(w http.ResponseWriter, r *http.Request){
-	//decode token
-	var tokenObj TokenBody
-	err := json.NewDecoder(r.Body).Decode(&tokenObj)
-	if err != nil {
-		http.Error(w, "Could not decode persistent connection request body", http.StatusBadRequest)
-		return
-	}
-	token := tokenObj.Token
+	 // Check if token is passed as a query parameter
+	 token := r.URL.Query().Get("queueToken")
+
+	 if token == "" {
+		 // If token is not present in query parameters, check headers
+		 token = r.Header.Get("queueToken")
+	 }
 
 	//verify token is in queue
 	if !SearchQueue(token){
@@ -133,12 +133,12 @@ func EstablishPersistenConnection(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	//if token is in queue, establish websocket connection with user
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		http.Error(w, "Could not open websocket connection", http.StatusBadRequest)
-		return
-	}
+	 // Proceed to WebSocket upgrade if token is valid
+	 conn, err := upgrader.Upgrade(w, r, nil)
+	 if err != nil {
+		 http.Error(w, "Could not open websocket connection", http.StatusBadRequest)
+		 return
+	 }
 
 	// Assume some unique client ID is obtained from request headers or other sources
 	clientID := token
@@ -200,21 +200,50 @@ func NotifyClient(clientID string) {
 //Function that will handle and save the videos to storage
 func HandleVideoUpload(w http.ResponseWriter, r *http.Request){
 	//Decode
-	var requestObj VideoUploadPasskey
-	err := json.NewDecoder(r.Body).Decode(&requestObj)
-	if err != nil {
-		http.Error(w, "Could not decode video upload request", http.StatusBadRequest)
-		return
-	}
+	passkey := r.Header.Get("Authorization")
+    clientID := r.Header.Get("Client-ID") // Assuming you send the client ID in a header
+    validated := ValidatePasskey(clientID, passkey)
+    if !validated {
+        http.Error(w, "Invalid passkey", http.StatusUnauthorized)
+        return
+    }
 
-	//Validate passkey
-	validated := ValidatePasskey(requestObj.ClientID, requestObj.Passkey)
+    // Read video chunk
+    videoData, err := ioutil.ReadAll(r.Body)
+    if err != nil {
+        http.Error(w, "Failed to read video data", http.StatusInternalServerError)
+        return
+    }
 
-	if !validated{
-		fmt.Println("A clients passkey could not be validated")
-	}
+    // Assuming you send chunk number and video name as headers
+    chunkNumber := r.Header.Get("Chunk-Number")
+    videoName := r.Header.Get("Video-Name")
 
-	//Save data to active video name
+	if chunkNumber == "" || videoName == "" {
+        http.Error(w, "Missing chunk number or video name", http.StatusBadRequest)
+        return
+    }
+
+	//set object (file) name
+	objectName := fmt.Sprintf("%s/%s", videoName, chunkNumber)
+	fmt.Println("Attempting to upload video chunk to Minio with object name: " + objectName)
+
+	_, err = minioClient.PutObject(
+        bucketName,
+        objectName,
+        bytes.NewReader(videoData),
+        int64(len(videoData)),
+        minio.PutObjectOptions{ContentType: "application/octet-stream"}, // or video/mp4 //TODO: Fully Test this
+    )
+
+    if err != nil {
+        http.Error(w, "Failed to upload video chunk", http.StatusInternalServerError)
+        return
+    }
+
+    w.Write([]byte("Successfully uploaded video chunk"))
+	w.WriteHeader(http.StatusOK)
+	
 }
 
 //Validate Client Passkey

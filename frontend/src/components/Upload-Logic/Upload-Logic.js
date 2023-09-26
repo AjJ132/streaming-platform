@@ -35,6 +35,19 @@ export const uploadVideo = async (video, title, description) => {
   console.log(uuid);
   console.log(metadata);
 
+
+  // const end = Math.min(videoBlob.size, start + chunkSize);
+  // const chunk = videoBlob.slice(start, end);
+
+  // await fetch(url, {
+  //   method: 'POST',
+  //   headers: {
+  //     'Authorization': 'Bearer YOUR_PASSKEY',
+  //     'Content-Range': `bytes ${start}-${end}/${videoBlob.size}`
+  //   },
+  //   body: chunk
+  // });
+
   // Step 5: Start the upload session by sending metadata and UUID to the server
   // The server initializes storage based on the UUID and waits for chunks.
   const uploadURL = `/upload/metadata/${metadata.uuid}`;
@@ -100,3 +113,133 @@ export const uploadVideo = async (video, title, description) => {
   // e.g., show a "Video uploaded successfully" message or navigate to another page.
   console.log("Upload complete!");
 };
+
+export const RequestUpload = async (name, title) => {
+  const metadata = {
+    name: name,
+    videoName: title,
+  };
+
+  const uploadURL = `/upload/request`;
+  //POST metadata to server
+  const response = await fetch(uploadURL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(metadata),
+  });
+
+  if (response.status !== 200 && response.status !== 500) {
+    console.log("Error: There was an error with the request. Please try again.");
+    return;
+  }
+  else if (response.status === 500){
+    console.log("Error: Internal Server Error ");+
+    console.log(response);
+    return;
+  }
+
+  //decode body
+  const body = await response.json();
+  
+  //get token from body
+  const token = body.queueToken;
+
+  //check if token was received
+  if (token === undefined) {
+    console.log("Error: Token not received by server. Please try again.");
+    return;
+  }
+  else if (token === ""){
+    console.log("Error: Invalid Token. Please try again.");
+    return;
+  }
+
+  //if token is valid store in local storage
+  localStorage.setItem("queueToken", token);
+
+
+}
+
+export const ConnectToQueue = () => {
+  const token = localStorage.getItem("queueToken");
+
+  const ws = new WebSocket('ws://your-server-domain/upload/ws/connect');
+
+  ws.onopen = () => {
+    // When the connection is open, send a message to the server to carry the token.
+    // You can design this part to fit your backend expectation.
+    ws.send(JSON.stringify({ token }));
+  };
+
+  ws.onmessage = (event) => {
+    console.log("Received:", event.data);
+    const message = event.data;
+
+    if (message.startsWith("PASSKEY:")) {
+      const passkey = message.split(":")[1];
+      
+      console.log("Received passkey:", passkey);
+    }
+  };
+
+  ws.onerror = (error) => {
+    console.log(`WebSocket Error: ${error}`);
+  };
+
+  ws.onclose = (event) => {
+    console.log('WebSocket closed:', event);
+  };
+};
+
+export const HandleUpload = async () => {
+  const maxChunkSize = 1000000; // 1MB
+
+  //Total byte size of video file
+  const videoSize = video.size;
+  console.log(videoSize);
+
+  //Determine max bits for each chunk
+  const numOfChunks = Math.ceil(videoSize / maxChunkSize);
+
+
+  const videoChunks = [];
+
+  //loop through video and slice into chunks
+  for (let i = 0; i < numOfChunks; i++) {
+    //slice video into chunks
+    const start = i * maxChunkSize;
+    const end = Math.min(videoSize, start + maxChunkSize);
+    const chunk = video.slice(start, end);
+
+    //add chunk to array
+    videoChunks.push(chunk);
+  }
+  // Step 7: Upload chunks
+  // Each chunk is uploaded with its sequence number and UUID.
+  //loop through videoChunks array and upload each chunk
+  for (let i = 0; i < videoChunks.length; i++) {
+    //create form data
+    const formData = new FormData();
+    formData.append("chunk", videoChunks[i]);
+
+    //upload chunk to server
+    const uploadChunkURL = `/upload/handle-upload`;
+    const response = await fetch(uploadChunkURL, {
+      method: "POST",
+      body: formData,
+      headers: {
+        "Chunk-Number": i,
+        "Video-Name": "TEMP-NAME",
+      },
+    });
+
+    //confirm chunk was received by server via 200 status code
+    if (response.status !== 200) {
+      console.log("Error: Chunk not received by server. Please try again.");
+      return;
+    }
+  }
+}
+
