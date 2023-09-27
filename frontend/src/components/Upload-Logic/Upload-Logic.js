@@ -1,148 +1,155 @@
-import { v4 as uuidv4 } from "uuid";
+// import { v4 as uuidv4 } from "uuid";
 
 // uploadLogic.js
-export const uploadVideo = async (video, title, description) => {
-  // Initialize variables and configurations
-  // e.g., chunkSize, uploadURL, etc.
-  const maxChunkSize = 1000000; // 1MB
+// export const uploadVideo = async (video, title, description) => {
+//   // Initialize variables and configurations
+//   // e.g., chunkSize, uploadURL, etc.
+//   const maxChunkSize = 1000000; // 1MB
 
-  // Step 1: Grab Info from video
-  // e.g., video format, duration, size, etc.
+//   // Step 1: Grab Info from video
+//   // e.g., video format, duration, size, etc.
 
-  //Total byte size of video file
-  const videoSize = video.size;
-  console.log(videoSize);
+//   //Total byte size of video file
+//   const videoSize = video.size;
+//   console.log(videoSize);
 
-  // Step 2: Determine max bits for each chunk
-  //TEMP max bits for each chunk is maxChunkSize
-  //Determine num of chunks
-  const numOfChunks = Math.ceil(videoSize / maxChunkSize);
+//   // Step 2: Determine max bits for each chunk
+//   //TEMP max bits for each chunk is maxChunkSize
+//   //Determine num of chunks
+//   const numOfChunks = Math.ceil(videoSize / maxChunkSize);
 
-  // Step 3: Prepare Metadata file
-  // e.g., JSON with title, description, total chunks, etc.
-  const metadata = {
-    title: title,
-    description: description,
-    numOfChunks: numOfChunks,
-    videoSize: videoSize,
-    uuid: "",
-  };
-  // Step 4: Generate a unique identifier (UUID) for the video
-  // This UUID will be used to create a folder for storing chunks.
-  const uuid = uuidv4();
-  metadata.uuid = uuid;
+//   // Step 3: Prepare Metadata file
+//   // e.g., JSON with title, description, total chunks, etc.
+//   const metadata = {
+//     title: title,
+//     description: description,
+//     numOfChunks: numOfChunks,
+//     videoSize: videoSize,
+//     uuid: "",
+//   };
+//   // Step 4: Generate a unique identifier (UUID) for the video
+//   // This UUID will be used to create a folder for storing chunks.
+//   const uuid = uuidv4();
+//   metadata.uuid = uuid;
 
-  console.log(uuid);
-  console.log(metadata);
+//   console.log(uuid);
+//   console.log(metadata);
 
+//   // const end = Math.min(videoBlob.size, start + chunkSize);
+//   // const chunk = videoBlob.slice(start, end);
 
-  // const end = Math.min(videoBlob.size, start + chunkSize);
-  // const chunk = videoBlob.slice(start, end);
+//   // await fetch(url, {
+//   //   method: 'POST',
+//   //   headers: {
+//   //     'Authorization': 'Bearer YOUR_PASSKEY',
+//   //     'Content-Range': `bytes ${start}-${end}/${videoBlob.size}`
+//   //   },
+//   //   body: chunk
+//   // });
 
-  // await fetch(url, {
-  //   method: 'POST',
-  //   headers: {
-  //     'Authorization': 'Bearer YOUR_PASSKEY',
-  //     'Content-Range': `bytes ${start}-${end}/${videoBlob.size}`
-  //   },
-  //   body: chunk
-  // });
+//   // Step 5: Start the upload session by sending metadata and UUID to the server
+//   // The server initializes storage based on the UUID and waits for chunks.
+//   const uploadURL = `/upload/metadata/${metadata.uuid}`;
+//   //POST metadata to server
+//   const response = await fetch(uploadURL, {
+//     method: "POST",
+//     headers: {
+//       "Content-Type": "application/json",
+//     },
+//     body: JSON.stringify(metadata),
+//   });
 
-  // Step 5: Start the upload session by sending metadata and UUID to the server
-  // The server initializes storage based on the UUID and waits for chunks.
-  const uploadURL = `/upload/metadata/${metadata.uuid}`;
-  //POST metadata to server
-  const response = await fetch(uploadURL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(metadata),
-  });
+//   //confirm metadata was received by server via 200 status code
+//   if (response.status !== 200) {
+//     console.log("Error: Metadata not received by server. Please try again.");
+//     return;
+//   }
+//   // Step 6: Split video into chunks
+//   // Read the video blob and slice it into smaller blobs.
+//   //Set array to hold video chunks
+//   const videoChunks = [];
 
-  //confirm metadata was received by server via 200 status code
-  if (response.status !== 200) {
-    console.log("Error: Metadata not received by server. Please try again.");
-    return;
-  }
-  // Step 6: Split video into chunks
-  // Read the video blob and slice it into smaller blobs.
-  //Set array to hold video chunks
-  const videoChunks = [];
+//   //loop through video and slice into chunks
+//   for (let i = 0; i < numOfChunks; i++) {
+//     //slice video into chunks
+//     const start = i * maxChunkSize;
+//     const end = Math.min(videoSize, start + maxChunkSize);
+//     const chunk = video.slice(start, end);
 
-  //loop through video and slice into chunks
-  for (let i = 0; i < numOfChunks; i++) {
-    //slice video into chunks
-    const start = i * maxChunkSize;
-    const end = Math.min(videoSize, start + maxChunkSize);
-    const chunk = video.slice(start, end);
+//     //add chunk to array
+//     videoChunks.push(chunk);
+//   }
+//   // Step 7: Upload chunks
+//   // Each chunk is uploaded with its sequence number and UUID.
+//   //loop through videoChunks array and upload each chunk
+//   for (let i = 0; i < videoChunks.length; i++) {
+//     //create form data
+//     const formData = new FormData();
+//     formData.append("chunk", videoChunks[i]);
+//     formData.append("chunkNumber", i);
+//     formData.append("uuid", uuid);
 
-    //add chunk to array
-    videoChunks.push(chunk);
-  }
-  // Step 7: Upload chunks
-  // Each chunk is uploaded with its sequence number and UUID.
-  //loop through videoChunks array and upload each chunk
-  for (let i = 0; i < videoChunks.length; i++) {
-    //create form data
-    const formData = new FormData();
-    formData.append("chunk", videoChunks[i]);
-    formData.append("chunkNumber", i);
-    formData.append("uuid", uuid);
+//     //upload chunk to server
+//     const uploadChunkURL = `/upload/chunk/${uuid}`;
+//     const response = await fetch(uploadChunkURL, {
+//       method: "POST",
+//       body: formData,
+//     });
 
-    //upload chunk to server
-    const uploadChunkURL = `/upload/chunk/${uuid}`;
-    const response = await fetch(uploadChunkURL, {
-      method: "POST",
-      body: formData,
-    });
+//     //confirm chunk was received by server via 200 status code
+//     if (response.status !== 200) {
+//       console.log("Error: Chunk not received by server. Please try again.");
+//       return;
+//     }
+//   }
+//   // Optionally, listen for acknowledgment from the server for each chunk.
+//   // Step 8: Notify the server that all chunks are uploaded
+//   // This can trigger the server-side assembly and transcoding process.
+//   const uploadCompleteURL = `/upload/complete/${uuid}`;
+//   // Step 9: Handle errors and retries
+//   // e.g., if a chunk fails to upload, retry a certain number of times before failing.
+//   // Step 10: Update the UI or redirect the user
+//   // e.g., show a "Video uploaded successfully" message or navigate to another page.
+//   console.log("Upload complete!");
+// };
 
-    //confirm chunk was received by server via 200 status code
-    if (response.status !== 200) {
-      console.log("Error: Chunk not received by server. Please try again.");
-      return;
-    }
-  }
-  // Optionally, listen for acknowledgment from the server for each chunk.
-  // Step 8: Notify the server that all chunks are uploaded
-  // This can trigger the server-side assembly and transcoding process.
-  const uploadCompleteURL = `/upload/complete/${uuid}`;
-  // Step 9: Handle errors and retries
-  // e.g., if a chunk fails to upload, retry a certain number of times before failing.
-  // Step 10: Update the UI or redirect the user
-  // e.g., show a "Video uploaded successfully" message or navigate to another page.
-  console.log("Upload complete!");
+export const uploadVideo = async (video, title, name) => {
+  RequestUpload(name, title, video);
 };
 
-export const RequestUpload = async (name, title) => {
+export const RequestUpload = async (name, title, video) => {
   const metadata = {
     name: name,
     videoName: title,
   };
 
+  const authToken = localStorage.getItem("token");
   const uploadURL = `/upload/request`;
   //POST metadata to server
   const response = await fetch(uploadURL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: authToken,
     },
+
     body: JSON.stringify(metadata),
   });
 
   if (response.status !== 200 && response.status !== 500) {
-    console.log("Error: There was an error with the request. Please try again.");
+    console.log(
+      "Error: There was an error with the request. Please try again."
+    );
     return;
-  }
-  else if (response.status === 500){
-    console.log("Error: Internal Server Error ");+
-    console.log(response);
+  } else if (response.status === 500) {
+    console.log("Error: Internal Server Error ");
+    +console.log(response);
     return;
   }
 
   //decode body
   const body = await response.json();
-  
+
   //get token from body
   const token = body.queueToken;
 
@@ -150,8 +157,7 @@ export const RequestUpload = async (name, title) => {
   if (token === undefined) {
     console.log("Error: Token not received by server. Please try again.");
     return;
-  }
-  else if (token === ""){
+  } else if (token === "") {
     console.log("Error: Invalid Token. Please try again.");
     return;
   }
@@ -159,13 +165,14 @@ export const RequestUpload = async (name, title) => {
   //if token is valid store in local storage
   localStorage.setItem("queueToken", token);
 
+  //connect to queue
+  ConnectToQueue();
+};
 
-}
-
-export const ConnectToQueue = () => {
+export const ConnectToQueue = (video) => {
   const token = localStorage.getItem("queueToken");
 
-  const ws = new WebSocket('ws://your-server-domain/upload/ws/connect');
+  const ws = new WebSocket("ws:///upload/ws/connect");
 
   ws.onopen = () => {
     // When the connection is open, send a message to the server to carry the token.
@@ -179,8 +186,10 @@ export const ConnectToQueue = () => {
 
     if (message.startsWith("PASSKEY:")) {
       const passkey = message.split(":")[1];
-      
+
       console.log("Received passkey:", passkey);
+
+      HandleUpload(video, passkey);
     }
   };
 
@@ -189,11 +198,11 @@ export const ConnectToQueue = () => {
   };
 
   ws.onclose = (event) => {
-    console.log('WebSocket closed:', event);
+    console.log("WebSocket closed:", event);
   };
 };
 
-export const HandleUpload = async () => {
+export const HandleUpload = async (video, passKey) => {
   const maxChunkSize = 1000000; // 1MB
 
   //Total byte size of video file
@@ -202,7 +211,6 @@ export const HandleUpload = async () => {
 
   //Determine max bits for each chunk
   const numOfChunks = Math.ceil(videoSize / maxChunkSize);
-
 
   const videoChunks = [];
 
@@ -241,5 +249,4 @@ export const HandleUpload = async () => {
       return;
     }
   }
-}
-
+};

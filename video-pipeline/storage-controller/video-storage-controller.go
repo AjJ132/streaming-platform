@@ -201,7 +201,7 @@ func NotifyClient(clientID string) {
 func HandleVideoUpload(w http.ResponseWriter, r *http.Request){
 	//Decode
 	passkey := r.Header.Get("Authorization")
-    clientID := r.Header.Get("Client-ID") // Assuming you send the client ID in a header
+    //clientID := r.Header.Get("Client-ID") // Assuming you send the client ID in a header
     validated := ValidatePasskey(clientID, passkey)
     if !validated {
         http.Error(w, "Invalid passkey", http.StatusUnauthorized)

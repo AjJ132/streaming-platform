@@ -1,90 +1,76 @@
 package main
 
 import (
-	"database/sql"
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	_ "github.com/lib/pq"
 )
 
-//Read Database Connection
-var db *sql.DB
 
 func main(){
 	fmt.Println("Starting Upload Controller...")
-	initDB()
 
-	// //create handler for user login and signup
-	// handler := &LoginHandler{
-	// 	DB:     db,
-	// 	Hasher: BcryptHasher{},
-	// }
-
-	// //create handler for user information
-	// userHandler := &UserHandler{
-	// 	DB: db,
-	// }
-
-	// http.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
-	// 	handler.Signup(w, r)
-	// })
-
-	// http.HandleFunc("/signin", func(w http.ResponseWriter, r *http.Request) {
-	// 	handler.Signin(w, r)
-	// })
-
-	// http.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
-	// 	userHandler.UpdateUserInfo(w, r)
-	// })
+	//Handle Upload Request
+	http.HandleFunc("/request", func(w http.ResponseWriter, r *http.Request) {
+		RequestUpload(w, r)
+	})
 
 	//Start server and host on port 8086
 	log.Fatal(http.ListenAndServe("0.0.0.0:8086", nil))
 }
 
 //Method to receive metadata for video upload
-func upload(w http.ResponseWriter, r *http.Request) {
+func RequestUpload(w http.ResponseWriter, r *http.Request) {
 	//Verify JWT Token
+	token := r.Header.Get("Authorization")
 
-	//Generate Token for Video Upload Queue
-	// token, err := generateToken("1")
+	//validate token
+	if !ValidateToken(token) {
+		http.Error(w, "Invalid token", http.StatusBadRequest)
+		return
+	}
 
-	//Create location for video upload in persisten volume
-
-	//On successful creation, add slot to video upload queue, and return confirmation token to user
-
-}
-
-func CreateNewVideoFolder(folderName string) {
-	//create folder in persistent volume
+	//if token is valid, send the request to the upload service
+	client := &http.Client{}
 	
-}
+	// Read the body of the incoming request
+	bodyBytes, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusInternalServerError)
+		return
+	}
 
+	// Create a new request to send to the next service
+	newReq, err := http.NewRequest("POST", "http://video-storage-controller-service/request:8010", bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		http.Error(w, "Error creating new request", http.StatusInternalServerError)
+		return
+	}
 
+	// Set headers for the new request
+	newReq.Header.Set("Content-Type", "application/json")
 
-// type LoginHandler struct {
-// 	DB     *sql.DB
-// 	Hasher Hasher
-// }
+	// Send the request to the next service
+	resp, err := client.Do(newReq)
+	if err != nil {
+		http.Error(w, "Error sending request to upload service", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
 
-// type UserHandler struct {
-// 	DB *sql.DB
-// }
-
-	
-
-// Generate Video Queue Token
-func generateToken(id string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id": id,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(),
-	})
-
-	// return token
-	return token.SignedString(tokenSignKey)
+	// Forward response back to the original client
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Error reading response body", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(resp.StatusCode)
+	w.Write(respBody)
 }
 
 // Validate JWT Token
@@ -107,3 +93,6 @@ func ValidateToken(tokenString string) bool {
 		return false
 	}
 }
+
+// Not so Secret key used to sign JWT tokens
+var tokenSignKey = []byte("not-very-secret-key")
