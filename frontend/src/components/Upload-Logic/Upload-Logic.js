@@ -224,7 +224,7 @@ export const HandleUpload = async (video, passKey) => {
     //add chunk to array
     videoChunks.push(chunk);
   }
-  // Step 7: Upload chunks
+  
   // Each chunk is uploaded with its sequence number and UUID.
   //loop through videoChunks array and upload each chunk
   for (let i = 0; i < videoChunks.length; i++) {

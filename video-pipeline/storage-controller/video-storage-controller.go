@@ -83,7 +83,7 @@ func main() {
 		HandleVideoUpload(w, r)
 	})
 
-	log.Fatal(http.ListenAndServe(":8010", nil))
+	log.Fatal(http.ListenAndServe("0.0.0.0:8010", nil))
 }
 
 //Function that will add a user's video upload to a queue
