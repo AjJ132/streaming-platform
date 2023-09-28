@@ -111,10 +111,14 @@
 //   // Step 10: Update the UI or redirect the user
 //   // e.g., show a "Video uploaded successfully" message or navigate to another page.
 //   console.log("Upload complete!");
-// };
+// }
+
+//global variable for title
+let globalTitle = "";
 
 export const uploadVideo = async (video, title, name) => {
   RequestUpload(name, title, video);
+  globalTitle = title;
 };
 
 export const RequestUpload = async (name, title, video) => {
@@ -168,11 +172,12 @@ export const RequestUpload = async (name, title, video) => {
   localStorage.setItem("queueToken", token);
 
   //connect to queue
-  ConnectToQueue(video);
+  ConnectToQueue(video, title);
 };
 
-export const ConnectToQueue = (video) => {
+export const ConnectToQueue = (video, title) => {
   const token = localStorage.getItem("queueToken");
+
   let clientID = "";
   clearInterval;
   const ws = new WebSocket(
@@ -197,10 +202,11 @@ export const ConnectToQueue = (video) => {
         const clientID = clientIDPart.split(":")[1];
         const passkey = passkeyPart.split(":")[1];
 
-        console.log("Received ClientID:", clientID);
-        console.log("Received passkey:", passkey);
+        console.log("Received ClientID2:", clientID);
+        console.log("Received passkey2:", passkey);
+        console.log("Received title:", title);
 
-        HandleUpload(video, passkey, clientID);
+        HandleUpload(video, passkey, clientID, title);
       }
     }
   };
@@ -214,8 +220,10 @@ export const ConnectToQueue = (video) => {
   };
 };
 
-export const HandleUpload = async (video, passKey, clientID) => {
+export const HandleUpload = async (video, passKey, clientID, title) => {
   const maxChunkSize = 1000000; // 1MB
+  console.log("Title: ", globalTitle);
+  console.log("Title: ", title);
 
   //Total byte size of video file
   const videoSize = video.size;
@@ -248,12 +256,13 @@ export const HandleUpload = async (video, passKey, clientID) => {
     //const uploadChunkURL = `/upload/handle-upload`;
     //TEMP URL SINCE NGINX ISNT RUNNING
     const uploadChunkURL = `http://localhost:8010/handle-upload`;
+
     const response = await fetch(uploadChunkURL, {
       method: "POST",
       body: formData,
       headers: {
         "Chunk-Number": i,
-        "Video-Name": "TEMP-NAME",
+        "Video-Name": title,
         "Client-ID": clientID,
         Authorization: passKey,
       },
