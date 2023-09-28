@@ -124,7 +124,9 @@ export const RequestUpload = async (name, title, video) => {
   };
 
   const authToken = localStorage.getItem("token");
-  const uploadURL = `/upload/request`;
+  //const uploadURL = `/upload/request`;
+  //TEMP URL SINCE NGINX ISNT RUNNING
+  const uploadURL = `http://localhost:8086/request`;
   //POST metadata to server
   const response = await fetch(uploadURL, {
     method: "POST",
@@ -166,17 +168,19 @@ export const RequestUpload = async (name, title, video) => {
   localStorage.setItem("queueToken", token);
 
   //connect to queue
-  ConnectToQueue();
+  ConnectToQueue(video);
 };
 
 export const ConnectToQueue = (video) => {
   const token = localStorage.getItem("queueToken");
-
-  const ws = new WebSocket("ws:///upload/ws/connect");
+  let clientID = "";
+  clearInterval;
+  const ws = new WebSocket(
+    `ws://localhost:8010/ws/connect?queueToken=${token}`
+  );
 
   ws.onopen = () => {
     // When the connection is open, send a message to the server to carry the token.
-    // You can design this part to fit your backend expectation.
     ws.send(JSON.stringify({ token }));
   };
 
@@ -184,12 +188,20 @@ export const ConnectToQueue = (video) => {
     console.log("Received:", event.data);
     const message = event.data;
 
-    if (message.startsWith("PASSKEY:")) {
-      const passkey = message.split(":")[1];
+    if (message.includes("CLIENTID") && message.includes("PASSKEY")) {
+      const parts = message.split(";");
+      const clientIDPart = parts.find((part) => part.startsWith("CLIENTID:"));
+      const passkeyPart = parts.find((part) => part.startsWith("PASSKEY:"));
 
-      console.log("Received passkey:", passkey);
+      if (clientIDPart && passkeyPart) {
+        const clientID = clientIDPart.split(":")[1];
+        const passkey = passkeyPart.split(":")[1];
 
-      HandleUpload(video, passkey);
+        console.log("Received ClientID:", clientID);
+        console.log("Received passkey:", passkey);
+
+        HandleUpload(video, passkey, clientID);
+      }
     }
   };
 
@@ -202,7 +214,7 @@ export const ConnectToQueue = (video) => {
   };
 };
 
-export const HandleUpload = async (video, passKey) => {
+export const HandleUpload = async (video, passKey, clientID) => {
   const maxChunkSize = 1000000; // 1MB
 
   //Total byte size of video file
@@ -224,7 +236,7 @@ export const HandleUpload = async (video, passKey) => {
     //add chunk to array
     videoChunks.push(chunk);
   }
-  
+
   // Each chunk is uploaded with its sequence number and UUID.
   //loop through videoChunks array and upload each chunk
   for (let i = 0; i < videoChunks.length; i++) {
@@ -233,13 +245,17 @@ export const HandleUpload = async (video, passKey) => {
     formData.append("chunk", videoChunks[i]);
 
     //upload chunk to server
-    const uploadChunkURL = `/upload/handle-upload`;
+    //const uploadChunkURL = `/upload/handle-upload`;
+    //TEMP URL SINCE NGINX ISNT RUNNING
+    const uploadChunkURL = `http://localhost:8010/handle-upload`;
     const response = await fetch(uploadChunkURL, {
       method: "POST",
       body: formData,
       headers: {
         "Chunk-Number": i,
         "Video-Name": "TEMP-NAME",
+        "Client-ID": clientID,
+        Authorization: passKey,
       },
     });
 

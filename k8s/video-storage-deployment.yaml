@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: minio
-          image: minio/minio:RELEASE.2022-01-08T03-11-57Z
+          image: ajj132/streaming-platform-video-storage-raw:latest
           args:
             - server
             - /data

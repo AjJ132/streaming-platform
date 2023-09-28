@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/handlers"
 	_ "github.com/lib/pq"
 )
 
@@ -20,58 +21,72 @@ func main(){
 		RequestUpload(w, r)
 	})
 
+	// Define CORS settings
+	corsObj := handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}), // replace "*" with specific origin when deploying to production
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE"}),
+		handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
+	)
+
 	//Start server and host on port 8086
-	log.Fatal(http.ListenAndServe("0.0.0.0:8086", nil))
+	log.Fatal(http.ListenAndServe("0.0.0.0:8086", corsObj(http.DefaultServeMux)))
 }
 
 //Method to receive metadata for video upload
 func RequestUpload(w http.ResponseWriter, r *http.Request) {
-	//Verify JWT Token
-	token := r.Header.Get("Authorization")
+	fmt.Println("Received request for video upload")
+	//print body
+	fmt.Println("Body: ", r.Body)
 
-	//validate token
-	if !ValidateToken(token) {
-		http.Error(w, "Invalid token", http.StatusBadRequest)
-		return
-	}
+	// Uncomment this block for production
+	// token := r.Header.Get("Authorization")
+	// if !ValidateToken(token) {
+	// 	http.Error(w, "Invalid token", http.StatusBadRequest)
+	// 	return
+	// }     
 
-	//if token is valid, send the request to the upload service
 	client := &http.Client{}
 	
-	// Read the body of the incoming request
+
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Error reading request body", http.StatusInternalServerError)
+		fmt.Println("Error reading request body:", err)
 		return
 	}
 
-	// Create a new request to send to the next service
-	newReq, err := http.NewRequest("POST", "http://video-storage-controller-service/request:8010", bytes.NewBuffer(bodyBytes))
+	newReq, err := http.NewRequest("POST", "http://localhost:8010/request", bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		http.Error(w, "Error creating new request", http.StatusInternalServerError)
+		fmt.Println("Error creating new request:", err)
 		return
 	}
 
-	// Set headers for the new request
 	newReq.Header.Set("Content-Type", "application/json")
 
-	// Send the request to the next service
 	resp, err := client.Do(newReq)
 	if err != nil {
 		http.Error(w, "Error sending request to upload service", http.StatusInternalServerError)
+		fmt.Println("Error sending request to upload service:", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	// Forward response back to the original client
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		http.Error(w, "Error reading response body", http.StatusInternalServerError)
+		fmt.Println("Error reading response body:", err)
 		return
 	}
+
+	fmt.Println("Message sent and received from upload service")
+	fmt.Println(string(respBody))
+	fmt.Println("Status code:", resp.StatusCode)
+
 	w.WriteHeader(resp.StatusCode)
 	w.Write(respBody)
 }
+
 
 // Validate JWT Token
 func ValidateToken(tokenString string) bool {

@@ -2,22 +2,26 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/websocket"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-var VideoQue = Queue{}
+var VideoQue = Queue{lock: sync.Mutex{}, modified: false}
+
 
 // Create a pool of clients
 var clients = make(map[string]*websocket.Conn)
@@ -26,6 +30,9 @@ var mutex = &sync.Mutex{}
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+        return true
+    },
 }
 
 //Client PassKeys 
@@ -33,23 +40,31 @@ var clientPasskeys = make(map[string]string)
 var currentVideoUploadName = ""
 
 // Create a new bucket
-bucketName := "videos-upload"
-location := "us-east-1"
+var bucketName string
+var location string
+
+// Initialize minio client object.
+var minioClient *minio.Client
+
 
 func main() {
+	bucketName = "videos-upload"
+	location = "us-east-1"
+	
+
 	// Initialize MinIO client
-	minioClient, err := minio.New("CHANGE-ME:9000", &minio.Options{
-		Creds:  credentials.NewStaticV4("user", "password", ""),
+	var err error
+	minioClient, err = minio.New("localhost:9000", &minio.Options{
+		Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
 		Secure: false,
 	})
-	if err != nil {
-		log.Fatal(err)
-	}
+
+
 
 	
-	err = minioClient.MakeBucket(bucketName, minio.MakeBucketOptions{Region: location})
+	err = minioClient.MakeBucket(context.TODO(), bucketName, minio.MakeBucketOptions{Region: location})
 	if err != nil {
-		exists, err := minioClient.BucketExists(bucketName)
+		exists, err := minioClient.BucketExists(context.TODO(), bucketName)
 		if err == nil && exists {
 			log.Printf("Already own %s\n", bucketName)
 		} else {
@@ -83,18 +98,44 @@ func main() {
 		HandleVideoUpload(w, r)
 	})
 
-	log.Fatal(http.ListenAndServe("0.0.0.0:8010", nil))
+	corsObj := handlers.CORS(
+		handlers.AllowedOrigins([]string{"http://localhost:5173"}),  // specify your allowed origins
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}), // include OPTIONS for preflight
+		handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization", "Chunk-Number", "Video-Name", "Client-ID"}), // add any other headers your client might send
+		
+	)
+	
+
+	fmt.Println("Video Storage Controller is now running on port 8010")
+
+	//start server
+	log.Fatal(http.ListenAndServe("0.0.0.0:8010" , corsObj(http.DefaultServeMux)))
 }
 
 //Function that will add a user's video upload to a queue
 func UploadRequest(w http.ResponseWriter, r *http.Request){
-	//Decode token
+	fmt.Println("Received request for video upload")
+
+	//print the response of the body
+	fmt.Println("")
+	fmt.Println("")
+	fmt.Println(r.Body)
+	fmt.Println("")
+	fmt.Println("")
+
+
+	//Decode body
 	var requestObj VideoRequest
 	err := json.NewDecoder(r.Body).Decode(&requestObj)
+	fmt.Println("Decoding request body")
 	if err != nil {
+		fmt.Println("There was an error in decoding the request body")
 		http.Error(w, "Could not decode video request body", http.StatusBadRequest)
 		return
 	}
+
+	fmt.Println("Video name: " + requestObj.VideoName)
+	fmt.Println("User name: " + requestObj.Name)
 
 	//create new queue item
 	var queueItem QueueItem
@@ -102,6 +143,7 @@ func UploadRequest(w http.ResponseWriter, r *http.Request){
 	queueItem.VideoName = requestObj.VideoName
 
 	//create new unique token for queue item
+	fmt.Println("Generating queue token")
 	token, err := generateToken()
 	if err != nil{
 		http.Error(w, "There was en error in generating the queue token", http.StatusInternalServerError)
@@ -109,26 +151,39 @@ func UploadRequest(w http.ResponseWriter, r *http.Request){
 	}
 
 	queueItem.QueueToken = token
+	fmt.Println("Generated token: " + token)
 
 	//add item to queue
-	VideoQue.items = append(VideoQue.items, queueItem)
+	VideoQue.Enqueue(queueItem)
+	fmt.Println("Added item to queue")
 
 	//return Queue token to user
+	fmt.Println("Returning queue token to user")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"queueToken": token})
 }
 
 func EstablishPersistenConnection(w http.ResponseWriter, r *http.Request){
+	 fmt.Println("Received request to establish persistent connection")
 	 // Check if token is passed as a query parameter
 	 token := r.URL.Query().Get("queueToken")
 
 	 if token == "" {
 		 // If token is not present in query parameters, check headers
+		 fmt.Println("Token not found in query parameters. Checking headers")
 		 token = r.Header.Get("queueToken")
+
+		 if token == "" {
+			//return error if token is not found
+			http.Error(w, "Token not found in query parameters or headers", http.StatusBadRequest)
+			return
+		 }
 	 }
 
+	 fmt.Println("Token found: " + token)
 	//verify token is in queue
 	if !SearchQueue(token){
+		fmt.Println("Token not found in queue")
 		http.Error(w, "Token not found in queue", http.StatusBadRequest)
 		return
 	}
@@ -136,8 +191,9 @@ func EstablishPersistenConnection(w http.ResponseWriter, r *http.Request){
 	 // Proceed to WebSocket upgrade if token is valid
 	 conn, err := upgrader.Upgrade(w, r, nil)
 	 if err != nil {
-		 http.Error(w, "Could not open websocket connection", http.StatusBadRequest)
-		 return
+		fmt.Println("Websocket Upgrade Error:", err)
+		http.Error(w, "Could not open websocket connection", http.StatusBadRequest)
+		return
 	 }
 
 	// Assume some unique client ID is obtained from request headers or other sources
@@ -145,6 +201,10 @@ func EstablishPersistenConnection(w http.ResponseWriter, r *http.Request){
 	mutex.Lock()
 	clients[clientID] = conn
 	mutex.Unlock()
+
+	 //
+	 fmt.Println("Client connected: " + clientID)
+	 fmt.Println("Sending client their queue position")
 
 	//find clients position in the queue and send that back
 	clientPosition := ReturnClientsPosition(token)
@@ -168,42 +228,63 @@ func SendClientQueuePosition(clientID string, number int){
 
 //Notify client that its their turn in the Queue to upload
 func NotifyClient(clientID string) {
+	fmt.Println("Notifying client that its their turn in the queue")
     passkey, _ := generateToken()  // Reuse your existing generateToken function
+
+	fmt.Println("Generated passkey: " + passkey)
     
     mutex.Lock()
     clientPasskeys[clientID] = passkey
     conn, ok := clients[clientID]
     mutex.Unlock()
 
-
+	
 
     if ok {
 		//Create folder with video name on the Minio storage pod
 		videoName := ReturnClientVideoName(clientID)
+		fmt.Println("Video name: " + videoName)
 		if(videoName == ""){
 			GeneralErrorHandling("There was an error in retrieving the video name")
 		}
 
+		//check if folder already exists
+		fmt.Println("Checking if folder already exists on Minio storage pod")
+		
+
+		fmt.Println("Attempting to create folder on Minio storage pod")
 		// Create a new folder (MinIO treats folders as zero-byte objects)
-		_, err = minioClient.PutObject(bucketName, videoName, bytes.NewReader([]byte("")), 0, minio.PutObjectOptions{ContentType: "application/x-directory"})
+		_, err := minioClient.PutObject(context.TODO(), bucketName, videoName, bytes.NewReader([]byte("")), 0, minio.PutObjectOptions{ContentType: "application/x-directory"})
 		if err != nil {
+			fmt.Println("There was an error in creating the folder on the Minio storage pod")
 			log.Fatalln(err)
 		}
+		
+		combinedMessage := fmt.Sprintf("CLIENTID:%s;PASSKEY:%s", clientID, passkey)
+		fmt.Println("Sending client their client ID and passkey")
 
-		//Notify client that they can begin upload, give them a valid upload passkey
-        if err := conn.WriteMessage(websocket.TextMessage, []byte("PASSKEY:"+passkey)); err != nil {
-            fmt.Println("There was an error when notifying the client that its their turn in the queue")
-        }
+		if err := conn.WriteMessage(websocket.TextMessage, []byte(combinedMessage)); err != nil {
+			fmt.Println("There was an error when notifying the client of their credentials")
+		}
+
+
+		
     }
 }
 
 //Function that will handle and save the videos to storage
 func HandleVideoUpload(w http.ResponseWriter, r *http.Request){
+
+	fmt.Println("Received request to handle video upload")
 	//Decode
 	passkey := r.Header.Get("Authorization")
-    //clientID := r.Header.Get("Client-ID") // Assuming you send the client ID in a header
+    clientID := r.Header.Get("Client-ID") // Assuming you send the client ID in a header
+	fmt.Println("Client ID: " + clientID)
+	fmt.Println("Passkey: " + passkey)
     validated := ValidatePasskey(clientID, passkey)
     if !validated {
+		//print the response of the body
+		fmt.Println("Invalid passkey")
         http.Error(w, "Invalid passkey", http.StatusUnauthorized)
         return
     }
@@ -211,6 +292,12 @@ func HandleVideoUpload(w http.ResponseWriter, r *http.Request){
     // Read video chunk
     videoData, err := ioutil.ReadAll(r.Body)
     if err != nil {
+		fmt.Println("Error reading video data")
+		fmt.Println("")
+		fmt.Println("")
+		fmt.Println(r.Body)
+		fmt.Println("")
+		fmt.Println("")
         http.Error(w, "Failed to read video data", http.StatusInternalServerError)
         return
     }
@@ -220,23 +307,38 @@ func HandleVideoUpload(w http.ResponseWriter, r *http.Request){
     videoName := r.Header.Get("Video-Name")
 
 	if chunkNumber == "" || videoName == "" {
+		fmt.Println("Missing chunk number or video name")
+		fmt.Println("")
+		fmt.Println("")
+		fmt.Println(r.Body)
+		fmt.Println("")
+		fmt.Println("")
         http.Error(w, "Missing chunk number or video name", http.StatusBadRequest)
         return
     }
 
 	//set object (file) name
-	objectName := fmt.Sprintf("%s/%s", videoName, chunkNumber)
+	objectName := fmt.Sprintf("%s/%s.mp4", videoName, chunkNumber)
+	//objectName := fmt.Sprintf("%s.mp4", chunkNumber)
 	fmt.Println("Attempting to upload video chunk to Minio with object name: " + objectName)
-
+	fmt.Println("Bucket name: " + bucketName)
 	_, err = minioClient.PutObject(
-        bucketName,
-        objectName,
-        bytes.NewReader(videoData),
-        int64(len(videoData)),
-        minio.PutObjectOptions{ContentType: "application/octet-stream"}, // or video/mp4 //TODO: Fully Test this
-    )
+		context.Background(),
+		bucketName,
+		objectName,
+		bytes.NewReader(videoData),
+		int64(len(videoData)),
+		minio.PutObjectOptions{ContentType: "application/octet-stream"},
+	)
+
+
 
     if err != nil {
+		fmt.Println("")
+		fmt.Println("")
+		fmt.Println(r.Body)
+		fmt.Println("")
+		fmt.Println("")
         http.Error(w, "Failed to upload video chunk", http.StatusInternalServerError)
         return
     }
@@ -256,16 +358,18 @@ func ValidatePasskey(clientID, passkey string) bool {
 
 //GO routine to watch Queue for changes
 func watchQueue(q *Queue) {
+	fmt.Println("Watching queue for changes")
     for {
         q.lock.Lock()
         if q.modified {
             q.modified = false
             q.lock.Unlock()
-            
+            fmt.Println("Queue was modified")
             time.Sleep(10 * time.Second) // Wait for 10 seconds
 
             // Notify the client
             if len(q.items) > 0 {
+				fmt.Println("New Item in Queue. Notifying client")
                 firstInQueue := q.items[0]
 				currentVideoUploadName = firstInQueue.VideoName
                 NotifyClient(firstInQueue.QueueToken)
@@ -274,7 +378,8 @@ func watchQueue(q *Queue) {
             q.lock.Unlock()
         }
 
-        time.Sleep(1 * time.Second) // Check every second
+		
+        time.Sleep(2 * time.Second) // Check every 2 seconds
     }
 }
 
@@ -309,12 +414,17 @@ func ReturnClientVideoName(token string) string{
 }
 
 //Queue Item
+// Enqueue Item
 func (q *Queue) Enqueue(item QueueItem) {
 	q.lock.Lock()
 	q.items = append(q.items, item)
+	q.modified = true  	
 	q.lock.Unlock()
-	q.modified = true
+	fmt.Println("")
+	fmt.Println("Ran Enqueue")
+	fmt.Println("")
 }
+
 
 //Dequeue Item
 func (q *Queue) Dequeue() *QueueItem {

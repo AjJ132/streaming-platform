@@ -10,7 +10,7 @@ function UploadVideo() {
   const handleSubmit = (e) => {
     e.preventDefault();
     // Logic to upload the video
-    uploadVideo(video, title, description);
+    uploadVideo(video, title, "TEMP-FIRST-NAME");
   };
 
   return (

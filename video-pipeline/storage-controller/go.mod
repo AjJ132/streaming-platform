@@ -2,12 +2,16 @@ module video-storage-controller.go
 
 go 1.20
 
-require github.com/minio/minio-go/v7 v7.0.63
+require (
+	github.com/gorilla/websocket v1.5.0
+	github.com/minio/minio-go/v7 v7.0.63
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/google/uuid v1.3.1 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
+	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
