@@ -279,8 +279,8 @@ func HandleVideoUpload(w http.ResponseWriter, r *http.Request){
 	//Decode
 	passkey := r.Header.Get("Authorization")
     clientID := r.Header.Get("Client-ID") // Assuming you send the client ID in a header
-	fmt.Println("Client ID: " + clientID)
-	fmt.Println("Passkey: " + passkey)
+	// fmt.Println("Client ID: " + clientID)
+	// fmt.Println("Passkey: " + passkey)
     validated := ValidatePasskey(clientID, passkey)
     if !validated {
 		//print the response of the body
@@ -318,18 +318,32 @@ func HandleVideoUpload(w http.ResponseWriter, r *http.Request){
     }
 
 	//set object (file) name
+	// objectName := fmt.Sprintf("%s/%s.mp4", videoName, chunkNumber)
+	// objectName := fmt.Sprintf("%s/%s", videoName, chunkNumber)
+	// objectName := fmt.Sprintf("%s.mp4", chunkNumber)
 	objectName := fmt.Sprintf("%s/%s.mp4", videoName, chunkNumber)
+
+
 	//objectName := fmt.Sprintf("%s.mp4", chunkNumber)
 	fmt.Println("Attempting to upload video chunk to Minio with object name: " + objectName)
-	fmt.Println("Bucket name: " + bucketName)
+	// fmt.Println("Bucket name: " + bucketName)
+	// _, err = minioClient.PutObject(
+	// 	context.Background(),
+	// 	bucketName,
+	// 	objectName,
+	// 	bytes.NewReader(videoData),
+	// 	int64(len(videoData)),
+	// 	minio.PutObjectOptions{ContentType: "application/octet-stream"},
+	// )
+
 	_, err = minioClient.PutObject(
-		context.Background(),
-		bucketName,
-		objectName,
-		bytes.NewReader(videoData),
-		int64(len(videoData)),
-		minio.PutObjectOptions{ContentType: "application/octet-stream"},
-	)
+        context.Background(),
+        bucketName,
+        objectName,
+        bytes.NewReader(videoData),
+        int64(len(videoData)),
+        minio.PutObjectOptions{ContentType: "video/mp4"},
+    )
 
 
 
